@@ -1,0 +1,86 @@
+---
+title: "PML_CourseProject"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data loading and preprocessing
+
+First of all, lets load and save the training data and load all necessary packages
+
+```{r data loading}
+
+library(caret)
+library(RANN)
+library(e1071)
+trainingData = read.csv("pml-training.csv")
+
+```
+
+Then, let's divide it into testing and validation subset. The validation subset is needed for choosing the better model (or choosing some meta parameters of the models).
+
+Additionally, after initial dividing, it was decided to leave only 10% of both testing and validation data set. This was done to reduce training time. It is not a good decision, but it is a compromise I had to take because of hardware limitations.
+
+```{r data patitioning}
+
+inTrain = createDataPartition(trainingData$classe, p = 3/4)[[1]]
+training = trainingData[inTrain,]
+validation = trainingData[-inTrain,]
+trainingHeadPartition = createDataPartition(training$classe, p = 0.1)[[1]]
+trainingHead = training[trainingHeadPartition,]
+validationHeadPartition = createDataPartition(validation$classe, p = 0.1)[[1]]
+validationHead = validation[validationHeadPartition, ]
+```
+
+## Prediction
+
+It was decided to use decision trees algorithm for training and making predictions. 
+
+Both of the data sets has a lot of empty fields, described as NA's. I got rid of them using preprocessing techniques.
+First of them is "k nearest neighbors imputing". 
+
+All of that led to following solution:
+
+```{r prediction1}
+
+preProcValues = preProcess(trainingHead, method = c("knnImpute"))
+trainingHeadPreprocessed = predict(preProcValues, trainingHead)
+modRpart = train(classe ~ ., method = "rpart", data = trainingHeadPreprocessed)
+preProcValues = preProcess(validationHead, method = c("knnImpute"))
+validationHeadPreprocessed = predict(preProcValues, validationHead)
+predRpart = predict(modRpart, validationHeadPreprocessed)
+confusionMatrix(predRpart, validationHeadPreprocessed$classe)$overall[1]
+```
+
+Received accuracy on the validation set equals to 65.7%
+
+Let's do the same thing, but using "bag impute" preprocessing:
+
+```{r prediction2}
+
+preProcValues = preProcess(trainingHead, method = c("bagImpute"))
+trainingHeadPreprocessed = predict(preProcValues, trainingHead)
+modRpart = train(classe ~ ., method = "rpart", data = trainingHeadPreprocessed)
+preProcValues = preProcess(validationHead, method = c("bagImpute"))
+validationHeadPreprocessed = predict(preProcValues, validationHead)
+predRpart = predict(modRpart, validationHeadPreprocessed)
+confusionMatrix(predRpart, validationHeadPreprocessed$classe)$overall[1]
+```
+
+Received accuracy on the validation set equals to 66.12%
+
+We'll use this model for predictions on the unseen data
+
+## Conclusions
+
+What should I've done better:
+
+1) Perform some model selection. That would've made the training faster and made the model simpler.
+
+2) Train more models
+
+3) Use model stacking or some other techniques of combining models for achieving better results
+
